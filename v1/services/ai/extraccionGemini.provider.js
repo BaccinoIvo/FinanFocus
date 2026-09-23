@@ -1,7 +1,12 @@
 import axios from "axios";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
-const TIMEOUT_MS = 8000;
+
+// Antes en 8000ms, muy justo: descargar la imagen + llamar a Gemini a veces
+// supera eso en un arranque en frío de la función serverless. Con el límite
+// de la función ya ampliado a 60s (vercel.json), hay margen para ser menos
+// agresivos acá sin arriesgar el timeout global.
+const TIMEOUT_MS = 20000;
 
 const MONEDAS_VALIDAS = ["UYU", "USD", "EUR", "BRL", "ARS"];
 
@@ -78,7 +83,6 @@ export const extraerDatos = async (imageUrl) => {
 
     let parsed;
     try {
-        // Gemini a veces envuelve el JSON en ```json ... ``` a pesar de la instrucción; lo limpiamos.
         const limpio = texto.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
         parsed = JSON.parse(limpio);
     } catch {
