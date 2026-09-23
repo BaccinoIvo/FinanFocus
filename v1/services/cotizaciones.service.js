@@ -1,10 +1,13 @@
+import axios from "axios";
+
 const BASE_URL = "https://datosuruguay.com/api/v1";
+const TIMEOUT_MS = 8000;
 
 // Caché simple en memoria. datosuruguay.com cachea 5min (quotes) y 15min (series),
 // y tiene límite compartido de 20 req/10s y 300 req/hora. Respetar esto con
 // nuestro propio caché evita pegarle de más y hace la integración más estable.
 const cache = new Map();
-const TTL_QUOTE_MS = 5 * 60 * 1000;   // 5 minutos (USD, EUR: cotización de mostrador)
+const TTL_QUOTE_MS = 5 * 60 * 1000;   // 5 minutos (USD, EUR, BRL, ARS: cotización de mostrador)
 const TTL_SERIE_MS = 15 * 60 * 1000;  // 15 minutos (UI, UR: series diarias/mensuales)
 
 const getCache = (key) => {
@@ -22,7 +25,7 @@ const setCache = (key, value, ttl) => {
 };
 
 /**
- * Cotización de mostrador (compra/venta) para USD o EUR, vía BROU.
+ * Cotización de mostrador (compra/venta) para USD, EUR, BRL o ARS, vía BROU.
  * Devuelve el promedio (average) como valor de referencia.
  */
 const obtenerCotizacionMoneda = async (moneda) => {
@@ -30,21 +33,27 @@ const obtenerCotizacionMoneda = async (moneda) => {
     const cacheado = getCache(key);
     if (cacheado) return cacheado;
 
-    const res = await fetch(`${BASE_URL}/exchange-rates/${moneda.toLowerCase()}/quote`);
-    if (!res.ok) {
-        throw new Error(`datosuruguay.com respondió ${res.status} para ${moneda}`);
+    let data;
+    try {
+        const res = await axios.get(`${BASE_URL}/exchange-rates/${moneda.toLowerCase()}/quote`, {
+            timeout: TIMEOUT_MS
+        });
+        data = res.data;
+    } catch (error) {
+        const status = error.response?.status;
+        throw new Error(`datosuruguay.com respondió ${status ?? error.code} para ${moneda}`);
     }
-    const json = await res.json();
-    if (json.error) {
-        throw new Error(`datosuruguay.com: ${json.error.code}`);
+
+    if (data.error) {
+        throw new Error(`datosuruguay.com: ${data.error.code}`);
     }
 
     const resultado = {
         moneda: moneda.toUpperCase(),
-        valor: json.data.average,
-        compra: json.data.buy,
-        venta: json.data.sell,
-        fecha: json.data.as_of
+        valor: data.data.average,
+        compra: data.data.buy,
+        venta: data.data.sell,
+        fecha: data.data.as_of
     };
     setCache(key, resultado, TTL_QUOTE_MS);
     return resultado;
@@ -58,15 +67,22 @@ const obtenerUnidadIndexada = async (tipo) => {
     const cacheado = getCache(key);
     if (cacheado) return cacheado;
 
-    const res = await fetch(`${BASE_URL}/indexed-units/${tipo.toLowerCase()}?limit=1`);
-    if (!res.ok) {
-        throw new Error(`datosuruguay.com respondió ${res.status} para ${tipo}`);
+    let data;
+    try {
+        const res = await axios.get(`${BASE_URL}/indexed-units/${tipo.toLowerCase()}`, {
+            params: { limit: 1 },
+            timeout: TIMEOUT_MS
+        });
+        data = res.data;
+    } catch (error) {
+        const status = error.response?.status;
+        throw new Error(`datosuruguay.com respondió ${status ?? error.code} para ${tipo}`);
     }
-    const json = await res.json();
-    if (json.error) {
-        throw new Error(`datosuruguay.com: ${json.error.code}`);
+
+    if (data.error) {
+        throw new Error(`datosuruguay.com: ${data.error.code}`);
     }
-    const punto = json.data[0];
+    const punto = data.data[0];
     if (!punto) {
         throw new Error(`Sin datos disponibles para ${tipo}`);
     }
@@ -81,7 +97,7 @@ const obtenerUnidadIndexada = async (tipo) => {
 };
 
 /**
- * Devuelve { moneda, valor, fecha } para USD, EUR, UI o UR.
+ * Devuelve { moneda, valor, fecha } para USD, EUR, BRL, ARS, UI o UR.
  */
 export const obtenerCotizacion = async (moneda) => {
     const m = moneda.toUpperCase();
@@ -107,7 +123,7 @@ export const convertirAPesos = async (monto, moneda) => {
 };
 
 /**
- * Snapshot de las 4 cotizaciones para el endpoint standalone GET /v1/cotizaciones.
+ * Snapshot de las 6 cotizaciones para el endpoint standalone GET /v1/cotizaciones.
  * Cada una se resuelve en forma independiente: si una falla, las demás igual se devuelven.
  */
 export const obtenerTodasLasCotizaciones = async () => {
