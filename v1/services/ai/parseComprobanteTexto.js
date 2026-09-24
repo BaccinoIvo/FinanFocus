@@ -4,44 +4,35 @@
  * de forma aislada, sin depender de correr OCR real.
  */
 
-/**
- * Busca un monto: prioriza el patrón "Total" o "Monto" seguido de números,
- * porque es más confiable que buscar cualquier número suelto en el ticket
- * (que también tiene RUT, fecha, cantidad de items, etc).
- * Ejemplo que matchea: "TOTAL: $ 1.250,00" -> captura "1.250,00"
- */
-// El grupo (?:U\$S|USD|\$)? cubre las tres formas en que aparece la moneda
-// antes del número en un ticket uruguayo: "U$S 450", "USD 450" o "$ 450".
-// Sin este grupo, "U$S" no matchea porque no es un "$" suelto.
 const REGEX_MONTO_CON_ETIQUETA = /(?:total|monto|importe)\s*:?\s*(?:U\$S|USD|\$)?\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/i;
-
-/** Fallback: cualquier número con marca de moneda delante, si no encontramos la etiqueta. */
 const REGEX_MONTO_GENERICO = /(?:U\$S|USD|\$)\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/i;
-
-/**
- * Busca una fecha en formato DD/MM/YYYY, DD-MM-YYYY o DD/MM/YY (típico de
- * tickets uruguayos). Captura día, mes y año por separado para poder
- * normalizarlos a ISO después.
- */
 const REGEX_FECHA = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/;
 
-/**
- * Detecta la moneda por palabras clave. En Uruguay, "$" solo significa
- * pesos uruguayos; "U$S" o "USD" indica dólares. Buscamos la marca de
- * dólar ANTES de asumir pesos, porque "U$S" contiene un "$".
- */
 const detectarMoneda = (texto) => {
     if (/U\$S|USD|d[oó]lares/i.test(texto)) return "USD";
     return "UYU";
 };
 
-/** Convierte "1.250,00" (formato uruguayo) a número JS: 1250.00 */
+/**
+ * Heurística de tipo (ingreso/egreso) por palabras clave. Un comprobante
+ * de COBRO (el usuario recibe plata) suele decir "recibí de", "cobrado a"
+ * o ser una factura EMITIDA. Un comprobante de PAGO (el usuario gasta)
+ * suele decir "pagado", "total a pagar", o ser un ticket de compra —
+ * que es, de lejos, el caso más común en fotos de comprobantes.
+ * Sin pistas claras, el default es "egreso" (más seguro que adivinar
+ * "ingreso" sin base: un ingreso mal marcado distorsiona más el balance).
+ */
+const REGEX_INDICADORES_INGRESO = /recib[íi]\s+de|cobrad[oa]\s+a|factura\s+emitida|recibo\s+de\s+cobro/i;
+
+const detectarTipo = (texto) => {
+    return REGEX_INDICADORES_INGRESO.test(texto) ? "ingreso" : "egreso";
+};
+
 const parsearMontoUruguayo = (textoMonto) => {
     const normalizado = textoMonto.replace(/\./g, "").replace(",", ".");
     return parseFloat(normalizado);
 };
 
-/** Normaliza DD/MM/YYYY a YYYY-MM-DD. Asume años de 2 dígitos como 20XX. */
 const normalizarFecha = (dia, mes, anio) => {
     const anioCompleto = anio.length === 2 ? `20${anio}` : anio;
     return `${anioCompleto}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
@@ -49,7 +40,7 @@ const normalizarFecha = (dia, mes, anio) => {
 
 /**
  * Punto de entrada: recibe el texto crudo que devolvió Tesseract y trata
- * de encontrar monto, moneda y fecha. Lanza error si no hay monto —
+ * de encontrar monto, moneda, fecha y tipo. Lanza error si no hay monto —
  * sin monto no hay datos útiles que ofrecer.
  */
 export const parsearTextoComprobante = (textoCrudo) => {
@@ -64,9 +55,10 @@ export const parsearTextoComprobante = (textoCrudo) => {
     }
 
     const moneda = detectarMoneda(textoCrudo);
+    const tipo = detectarTipo(textoCrudo);
 
     const matchFecha = textoCrudo.match(REGEX_FECHA);
     const fecha = matchFecha ? normalizarFecha(matchFecha[1], matchFecha[2], matchFecha[3]) : null;
 
-    return { monto, moneda, fecha };
+    return { monto, moneda, fecha, tipo };
 };
