@@ -1,15 +1,7 @@
 import { subirImagenBuffer } from "../services/cloudinary.service.js";
 import { procesarComprobante } from "../services/comprobante.service.js";
 
-/**
- * POST /v1/comprobantes/extraer
- * Sube el archivo a Cloudinary y, según su tipo (imagen, PDF, u otro),
- * intenta extraer monto/moneda/fecha con el motor correspondiente. El
- * frontend usa esta respuesta para pre-cargar el formulario de alta de
- * movimiento. Siempre responde 200 si la subida a Cloudinary funcionó —
- * el fallo de la extracción de datos no es un error HTTP, es un resultado
- * posible (ai_processed:false).
- */
+
 export const extraerComprobante = async (req, res, next) => {
     try {
         if (!req.file) {

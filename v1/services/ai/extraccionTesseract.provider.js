@@ -11,12 +11,6 @@ const TIMEOUT_MS = 15000;
  * Corre Tesseract en un proceso hijo aislado. Si el hijo responde con un
  * resultado, se resuelve. Si crashea, se cuelga, o termina sin avisar, se
  * rechaza — pero el proceso PADRE (el servidor Express) nunca se ve afectado.
- *
- * NOTA: silent quedó en false (a diferencia de antes) para que el
- * stdout/stderr del hijo se vea en los logs de Vercel — necesario para
- * diagnosticar la causa exacta del crash interno de Tesseract. Una vez
- * identificada y resuelta (o aceptada como comportamiento esperado), se
- * puede volver a poner en true para logs más limpios.
  */
 export const extraerDatos = (imageUrl) => {
     return new Promise((resolve, reject) => {

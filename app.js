@@ -5,10 +5,7 @@ import { connectDB } from "./v1/config/db.config.js";
 import notFoundMiddleware from "./v1/middlewares/notFound.middleware.js";
 import v1 from "./v1/v1.routes.js";
 
-// Se conecta acá, no en server.js: Vercel detecta este archivo (app.js) como
-// punto de entrada y usa su export default directamente, sin pasar por
-// server.js ni por app.listen(). Si la conexión viviera solo en server.js,
-// en producción nunca se ejecutaría.
+
 await connectDB();
 
 const app = express();

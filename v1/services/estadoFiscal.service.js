@@ -1,10 +1,6 @@
 import Movimiento from "../models/movimiento.model.js";
 
-/**
- * Calcula el estado fiscal del usuario con reglas fijas y determinísticas.
- * Esto es lo que la letra llama "el dueño del sistema": la IA nunca decide
- * estos números, solo los narra después.
- */
+
 export const calcularEstadoFiscal = async (usuarioId) => {
     const movimientos = await Movimiento.find({ usuario: usuarioId }).populate("categoria", "nombre tipo");
 

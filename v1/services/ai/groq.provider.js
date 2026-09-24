@@ -3,17 +3,12 @@ import { construirPromptResumenFiscal } from "./prompt.js";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-// llama-3.3-70b-versatile fue dado de baja por Groq el 16/8/2026.
-// openai/gpt-oss-120b es el reemplazo oficial recomendado por Groq.
+
 const MODEL = "openai/gpt-oss-120b";
 
 const TIMEOUT_MS = 8000;
 
-/**
- * Llama a la API de Groq (compatible con el formato de OpenAI) para narrar
- * el estado fiscal ya calculado. Lanza error si falla o no responde a
- * tiempo — el orquestador decide qué hacer con ese error.
- */
+
 export const generarNarracion = async (estado) => {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {

@@ -4,11 +4,7 @@ import { construirPromptResumenFiscal } from "./prompt.js";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
 const TIMEOUT_MS = 8000;
 
-/**
- * Llama a la API de Gemini para narrar el estado fiscal ya calculado.
- * Funciona como respaldo de Groq: si Groq falla, el orquestador prueba acá
- * antes de caer a las reglas fijas sin narración.
- */
+
 export const generarNarracion = async (estado) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {

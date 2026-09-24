@@ -3,9 +3,6 @@ import axios from "axios";
 const BASE_URL = "https://datosuruguay.com/api/v1";
 const TIMEOUT_MS = 8000;
 
-// Caché simple en memoria. datosuruguay.com cachea 5min (quotes) y 15min (series),
-// y tiene límite compartido de 20 req/10s y 300 req/hora. Respetar esto con
-// nuestro propio caché evita pegarle de más y hace la integración más estable.
 const cache = new Map();
 const TTL_QUOTE_MS = 5 * 60 * 1000;   // 5 minutos (USD, EUR, BRL, ARS: cotización de mostrador)
 const TTL_SERIE_MS = 15 * 60 * 1000;  // 15 minutos (UI, UR: series diarias/mensuales)
@@ -24,10 +21,7 @@ const setCache = (key, value, ttl) => {
     cache.set(key, { value, timestamp: Date.now(), ttl });
 };
 
-/**
- * Cotización de mostrador (compra/venta) para USD, EUR, BRL o ARS, vía BROU.
- * Devuelve el promedio (average) como valor de referencia.
- */
+
 const obtenerCotizacionMoneda = async (moneda) => {
     const key = `moneda:${moneda}`;
     const cacheado = getCache(key);
@@ -59,9 +53,7 @@ const obtenerCotizacionMoneda = async (moneda) => {
     return resultado;
 };
 
-/**
- * Valor de la Unidad Indexada (UI) o Unidad Reajustable (UR), última cotización disponible.
- */
+
 const obtenerUnidadIndexada = async (tipo) => {
     const key = `unidad:${tipo}`;
     const cacheado = getCache(key);
@@ -96,9 +88,7 @@ const obtenerUnidadIndexada = async (tipo) => {
     return resultado;
 };
 
-/**
- * Devuelve { moneda, valor, fecha } para USD, EUR, BRL, ARS, UI o UR.
- */
+
 export const obtenerCotizacion = async (moneda) => {
     const m = moneda.toUpperCase();
     if (["USD", "EUR", "BRL", "ARS"].includes(m)) return obtenerCotizacionMoneda(m);
@@ -106,11 +96,7 @@ export const obtenerCotizacion = async (moneda) => {
     throw new Error(`Moneda no soportada: ${moneda}`);
 };
 
-/**
- * Convierte un monto a pesos uruguayos según su moneda.
- * Devuelve null en vez de lanzar si el servicio de cotizaciones falla:
- * así un movimiento se puede seguir creando aunque la fuente externa esté caída.
- */
+
 export const convertirAPesos = async (monto, moneda) => {
     if (moneda === "UYU") return monto;
     try {
@@ -122,10 +108,7 @@ export const convertirAPesos = async (monto, moneda) => {
     }
 };
 
-/**
- * Snapshot de las 6 cotizaciones para el endpoint standalone GET /v1/cotizaciones.
- * Cada una se resuelve en forma independiente: si una falla, las demás igual se devuelven.
- */
+
 export const obtenerTodasLasCotizaciones = async () => {
     const monedas = ["USD", "EUR", "BRL", "ARS", "UI", "UR"];
     const resultados = await Promise.allSettled(monedas.map(obtenerCotizacion));

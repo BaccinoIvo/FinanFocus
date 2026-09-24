@@ -29,10 +29,7 @@ export const crearCategoria = async (req, res, next) => {
     }
 };
 
-/**
- * Listar categorías disponibles para el usuario:
- * las del sistema + las propias. Con paginación.
- */
+
 export const listarCategorias = async (req, res, next) => {
     try {
         const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -60,10 +57,7 @@ export const listarCategorias = async (req, res, next) => {
     }
 };
 
-/**
- * Actualizar categoría.
- * Solo el dueño puede modificar la suya. Las del sistema, solo el admin.
- */
+
 export const actualizarCategoria = async (req, res, next) => {
     try {
         const categoria = await Categoria.findById(req.params.id);
@@ -92,10 +86,7 @@ export const actualizarCategoria = async (req, res, next) => {
     }
 };
 
-/**
- * Eliminar categoría.
- * La letra exige que NO se pueda borrar una categoría con documentos asociados.
- */
+
 export const eliminarCategoria = async (req, res, next) => {
     try {
         const categoria = await Categoria.findById(req.params.id);

@@ -1,10 +1,4 @@
-/**
- * Script para precargar el usuario admin en la base de datos.
- * La letra exige explícitamente poder tener usuarios con otro tipo de perfil
- * (ej: administradores) precargados, sin pasar por el endpoint de registro.
- *
- * Uso: node v1/seeds/admin.seed.js
- */
+
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
