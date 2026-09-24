@@ -1,11 +1,6 @@
 import axios from "axios";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
-
-// Antes en 8000ms, muy justo: descargar la imagen + llamar a Gemini a veces
-// supera eso en un arranque en frío de la función serverless. Con el límite
-// de la función ya ampliado a 60s (vercel.json), hay margen para ser menos
-// agresivos acá sin arriesgar el timeout global.
 const TIMEOUT_MS = 20000;
 
 const MONEDAS_VALIDAS = ["UYU", "USD", "EUR", "BRL", "ARS"];
@@ -26,11 +21,26 @@ Reglas:
 Respondé solo con el JSON, nada más.`;
 
 /**
- * Descarga la imagen desde Cloudinary y la codifica en base64 para mandarla
- * a Gemini como contenido multimodal (inlineData).
+ * Inserta una transformación de Cloudinary en la URL para pedir una versión
+ * redimensionada y comprimida, en vez de la foto original.
+ *
+ * Por qué: una foto de celular sin editar puede pesar varios MB. Codificada
+ * en base64 para mandarla a Gemini (que crece ~33% el tamaño), el payload
+ * puede volverse tan grande que la llamada se cuelga hasta el timeout, sin
+ * dar ningún error claro — es justo lo que estábamos viendo (ECONNABORTED).
+ * 1200px de ancho es de sobra para que Gemini lea texto de un ticket.
+ */
+const obtenerUrlRedimensionada = (imageUrl) => {
+    return imageUrl.replace("/upload/", "/upload/w_1200,q_auto,f_auto/");
+};
+
+/**
+ * Descarga la imagen (ya redimensionada por Cloudinary) y la codifica en
+ * base64 para mandarla a Gemini como contenido multimodal (inlineData).
  */
 const descargarComoBase64 = async (imageUrl) => {
-    const res = await axios.get(imageUrl, {
+    const urlOptimizada = obtenerUrlRedimensionada(imageUrl);
+    const res = await axios.get(urlOptimizada, {
         responseType: "arraybuffer",
         timeout: TIMEOUT_MS
     });
