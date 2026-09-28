@@ -12,7 +12,14 @@ const router = express.Router({ mergeParams: true });
 
 // Rutas desprotegidas
 router.use("/auth", authRouter);
-
+router.get("/ping", (req, res) => {
+    res.status(200).json({
+        success: true,
+        status: "active",
+        message: "FinanFocus API is awake and running.",
+        timestamp: new Date().toISOString()
+    });
+});
 // A partir de acá, todo requiere token
 router.use(authenticateToken);
 
