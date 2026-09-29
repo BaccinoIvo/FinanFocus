@@ -10,7 +10,7 @@ const PROMPT_EXTRACCION = `Sos un asistente que extrae datos estructurados de co
 uruguayos (tickets, facturas, recibos). Analizá la imagen y devolvé ÚNICAMENTE un objeto JSON,
 sin texto adicional, sin markdown, sin backticks, con esta forma exacta:
 
-{"monto": <número>, "moneda": "<UYU|USD|EUR|BRL|ARS>", "fecha": "<YYYY-MM-DD>", "tipo": "<ingreso|egreso>"}
+{"monto": <número>, "moneda": "<UYU|USD|EUR|BRL|ARS>", "fecha": "<YYYY-MM-DD>", "tipo": "<ingreso|egreso>", "numeroComprobante": <string o null>, "rutEmisor": <string o null>, "montoIva": <número o null>}
 
 Reglas:
 - "monto" es el total final pagado (no subtotales ni IVA por separado), como número sin separadores de miles.
@@ -21,6 +21,13 @@ Reglas:
   que el usuario COBRÓ algo (una factura que el usuario emitió a un cliente, un recibo de cobro
   por un servicio que el usuario prestó). Si no podés determinarlo con confianza, usá "egreso"
   (es el caso más común en comprobantes fotografiados).
+- "numeroComprobante": el número de factura, ticket o folio, si aparece impreso. Si no lo ves
+  con claridad, usá null — no lo inventes.
+- "rutEmisor": el RUT de quien emite el comprobante, si aparece impreso (formato típico:
+  XX-XXXXXXX-XXX o similar). Si no lo ves con claridad, usá null — no lo inventes.
+- "montoIva": el monto de IVA desglosado, SOLO si el documento lo muestra explícitamente como
+  un renglón separado. Muchos tickets no lo desglosan — en ese caso, usá null. No calcules ni
+  estimes un IVA que no esté impreso.
 - Si la imagen no es un comprobante legible o no podés extraer el monto con confianza, respondé
   exactamente: {"error": "no_legible"}
 
@@ -48,9 +55,10 @@ const descargarComoBase64 = async (fileUrl, mimeTypeOriginal) => {
 };
 
 /**
- * Extrae {monto, moneda, fecha, tipo} de un comprobante (imagen o PDF)
- * usando Gemini. Lanza error si no es legible, si Gemini no responde, o
- * si la respuesta no es un JSON válido — el orquestador decide qué hacer.
+ * Extrae {monto, moneda, fecha, tipo, numeroComprobante, rutEmisor,
+ * montoIva} de un comprobante (imagen o PDF) usando Gemini. Los últimos
+ * tres campos quedan en null si Gemini no los encuentra con confianza —
+ * nunca se inventan ni se estiman.
  */
 export const extraerDatos = async (fileUrl, mimeTypeOriginal = "image/jpeg") => {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -102,8 +110,16 @@ export const extraerDatos = async (fileUrl, mimeTypeOriginal = "image/jpeg") => 
     if (typeof parsed.monto !== "number" || !MONEDAS_VALIDAS.includes(parsed.moneda)) {
         throw new Error("Gemini devolvió datos incompletos o inválidos");
     }
-    // Si tipo viene ausente o inválido, default seguro: egreso (caso más común).
+
     const tipo = TIPOS_VALIDOS.includes(parsed.tipo) ? parsed.tipo : "egreso";
 
-    return { monto: parsed.monto, moneda: parsed.moneda, fecha: parsed.fecha ?? null, tipo };
+    return {
+        monto: parsed.monto,
+        moneda: parsed.moneda,
+        fecha: parsed.fecha ?? null,
+        tipo,
+        numeroComprobante: typeof parsed.numeroComprobante === "string" ? parsed.numeroComprobante : null,
+        rutEmisor: typeof parsed.rutEmisor === "string" ? parsed.rutEmisor : null,
+        montoIva: typeof parsed.montoIva === "number" ? parsed.montoIva : null
+    };
 };

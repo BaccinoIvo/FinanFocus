@@ -26,13 +26,10 @@ const movimientoSchema = new mongoose.Schema({
         enum: ["UYU", "USD", "EUR", "BRL", "ARS", "UI", "UR"],
         required: true
     },
-    // Monto convertido a pesos uruguayos usando la cotización del día.
-    // Se completa más adelante, cuando integremos el servicio de cotizaciones.
     montoConvertidoUYU: {
         type: Number,
         default: null
     },
-    // Marca si el ingreso proviene de exportación de servicios (IVA tasa 0%).
     esExportacionServicio: {
         type: Boolean,
         default: false
@@ -46,10 +43,26 @@ const movimientoSchema = new mongoose.Schema({
         trim: true,
         default: ""
     },
-    // URLs de los comprobantes subidos a Cloudinary. Se completa más adelante.
     comprobantes: {
         type: [String],
         default: []
+    },
+    // Campos opcionales, completados por el usuario a mano o por la IA
+    // cuando el comprobante los trae impresos. null si no están disponibles
+    // — nunca se inventan.
+    numeroComprobante: {
+        type: String,
+        trim: true,
+        default: null
+    },
+    rutEmisor: {
+        type: String,
+        trim: true,
+        default: null
+    },
+    montoIva: {
+        type: Number,
+        default: null
     }
 }, {
     timestamps: true
