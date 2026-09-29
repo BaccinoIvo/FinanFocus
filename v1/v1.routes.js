@@ -16,7 +16,7 @@ router.get("/ping", (req, res) => {
     res.status(200).json({
         success: true,
         status: "active",
-        message: "FinanFocus API is awake and running.",
+        message: "FinanFocus esta despierto.",
         timestamp: new Date().toISOString()
     });
 });
