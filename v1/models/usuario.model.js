@@ -20,16 +20,25 @@ const usuarioSchema = new mongoose.Schema({
     },
     tipo: {
         type: String,
-        enum: ["admin", "usuario"],
+        enum: ["admin", "usuario", "estudio"],
         default: "usuario"
     },
     plan: {
         type: String,
         enum: ["plus", "premium"],
         default: "plus"
+    },
+    contador: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Usuario",
+        default: null
+    },
+    trialExpiraEl: {
+        type: Date,
+        default: null
     }
 }, {
-    timestamps: true // agrega createdAt y updatedAt automaticamente
+    timestamps: true
 });
 
 const Usuario = mongoose.model("Usuario", usuarioSchema);
