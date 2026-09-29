@@ -121,7 +121,7 @@ export const verMovimientosDeUsuario = async (req, res, next) => {
 
 const escaparCSV = (valor) => {
     const texto = String(valor ?? "");
-    if (/[",\n]/.test(texto)) {
+    if (/[";\n]/.test(texto)) {
         return `"${texto.replace(/"/g, '""')}"`;
     }
     return texto;
@@ -171,7 +171,7 @@ export const exportarMovimientos = async (req, res, next) => {
         const filas = movimientos.map(mapearFila);
 
         if (formato.toLowerCase() === "zeta") {
-            const csv = [COLUMNAS.join(","), ...filas.map(f => f.map(escaparCSV).join(","))].join("\n");
+            const csv = [COLUMNAS.join(";"), ...filas.map(f => f.map(escaparCSV).join(","))].join("\n");
             res.header("Content-Type", "text/csv");
             res.attachment(`Exportacion_ZetaSoftware_${usuarioId}.csv`);
             return res.status(200).send(csv);
