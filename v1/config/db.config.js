@@ -13,5 +13,6 @@ export const connectDB = async () => {
     }
 
     await mongoose.connect(uri);
-    console.log("Conectado a MongoDB correctamente");
+    
 };
+
