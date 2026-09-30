@@ -1,9 +1,6 @@
 import Usuario from "../models/usuario.model.js";
 
-/**
- * Cambio de plan plus -> premium.
- * La letra: "Cambiar de plan solamente requiere estar en el plan plus."
- */
+
 export const cambiarPlan = async (req, res, next) => {
     try {
         const usuario = await Usuario.findById(req.user.id);

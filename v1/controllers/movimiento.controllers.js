@@ -3,10 +3,7 @@ import Categoria from "../models/categoria.model.js";
 import { convertirAPesos } from "../services/cotizaciones.service.js";
 import { subirImagenBuffer } from "../services/cloudinary.service.js";
 
-/**
- * Crear movimiento. El límite de plan ya fue validado por el middleware previo.
- * Valida que la categoría exista y sea usable por el usuario (del sistema o propia).
- */
+
 export const crearMovimiento = async (req, res, next) => {
     try {
         const datos = req.validatedBody;

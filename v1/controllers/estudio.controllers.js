@@ -127,9 +127,7 @@ const escaparCSV = (valor) => {
     return texto;
 };
 
-// Se agregaron NUMERO_COMPROBANTE, RUT_EMISOR e IVA al final. Cuando el
-// dato existe (cargado a mano o leído por la IA), se usa el real; si no,
-// queda vacío — nunca un valor inventado tipo "9.9.9.99" o "0000".
+
 const COLUMNAS = [
     "FECHA", "TIPO", "CATEGORIA", "DESCRIPCION", "MONEDA", "MONTO_ORIGEN",
     "MONTO_UYU", "EXPORTACION_SERVICIO", "NUMERO_COMPROBANTE", "RUT_EMISOR", "IVA"
