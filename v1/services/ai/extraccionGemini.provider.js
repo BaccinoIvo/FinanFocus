@@ -60,13 +60,18 @@ const descargarComoBase64 = async (fileUrl, mimeTypeOriginal) => {
  * tres campos quedan en null si Gemini no los encuentra con confianza —
  * nunca se inventan ni se estiman.
  */
-export const extraerDatos = async (fileUrl, mimeTypeOriginal = "image/jpeg") => {
+export const extraerDatos = async (entrada, mimeTypeOriginal = "image/jpeg") => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new Error("Falta GEMINI_API_KEY en las variables de entorno");
     }
 
-    const { base64, mimeType } = await descargarComoBase64(fileUrl, mimeTypeOriginal);
+    // Si llega el archivo en memoria ({ buffer, mimeType }) se manda directo a Gemini: no hace falta
+    // subirlo a Cloudinary, transformarlo y volver a bajarlo antes (eso sumaba varios segundos).
+    // Si llega una URL, se descarga como antes.
+    const { base64, mimeType } = typeof entrada === "string"
+        ? await descargarComoBase64(entrada, mimeTypeOriginal)
+        : { base64: entrada.buffer.toString("base64"), mimeType: entrada.mimeType };
 
     let data;
     try {
