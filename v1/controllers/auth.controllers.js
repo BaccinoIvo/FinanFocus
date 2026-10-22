@@ -1,12 +1,13 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import Usuario from "../models/usuario.model.js";
+import { DIAS_TRIAL, normalizarPlan } from "../config/planes.config.js";
 
 export const login = async (req, res) => {
     const { nombreUsuario, password } = req.validatedBody;
 
     const userFound = await Usuario.findOne({ nombreUsuario });
-    if (!userFound) {
+    if (!userFound || userFound.esPerfilSombra) {
         return res.status(401).json({ message: "Usuario y/o contraseña incorrectos" });
     }
 
@@ -16,7 +17,7 @@ export const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-        { id: userFound._id, nombreUsuario: userFound.nombreUsuario, tipo: userFound.tipo, plan: userFound.plan },
+        { id: userFound._id, nombreUsuario: userFound.nombreUsuario, tipo: userFound.tipo, plan: normalizarPlan(userFound.plan) },
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
     );
@@ -25,7 +26,7 @@ export const login = async (req, res) => {
 };
 
 export const register = async (req, res) => {
-    const { nombreUsuario, email, password } = req.validatedBody;
+    const { nombreUsuario, email, password, tipo } = req.validatedBody;
 
     // Duplicados: la letra exige que no haya dos usuarios con el mismo nombre de usuario
     const existente = await Usuario.findOne({ $or: [{ nombreUsuario }, { email }] });
@@ -35,17 +36,21 @@ export const register = async (req, res) => {
 
     const hashedPassword = bcrypt.hashSync(password, Number(process.env.SALTING_ROUNDS));
 
+    const esEstudio = tipo === "estudio";
     const nuevoUsuario = new Usuario({
         nombreUsuario,
         email,
-        hashedPassword
-        // tipo y plan quedan en sus valores por defecto: "usuario" y "plus"
+        hashedPassword,
+        tipo,
+        // Usuario: arranca en el plan gratuito. Estudio: 30 días de prueba.
+        plan: esEstudio ? "trial" : "gratuito",
+        trialExpiraEl: esEstudio ? new Date(Date.now() + DIAS_TRIAL * 24 * 60 * 60 * 1000) : null
     });
 
     await nuevoUsuario.save();
 
     const token = jwt.sign(
-        { id: nuevoUsuario._id, nombreUsuario: nuevoUsuario.nombreUsuario, tipo: nuevoUsuario.tipo, plan: nuevoUsuario.plan },
+        { id: nuevoUsuario._id, nombreUsuario: nuevoUsuario.nombreUsuario, tipo: nuevoUsuario.tipo, plan: normalizarPlan(nuevoUsuario.plan) },
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
     );

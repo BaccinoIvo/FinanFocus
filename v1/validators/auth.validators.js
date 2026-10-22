@@ -17,6 +17,10 @@ export const registerSchema = Joi.object({
         "string.pattern.base": "La contraseña debe tener al menos una letra y un número",
         "any.required": "La contraseña es obligatoria",
         "string.empty": "La contraseña no puede estar vacía"
+    }),
+    // Un contador o estudio se registra con tipo "estudio" (arranca con 30 días de prueba).
+    tipo: Joi.string().valid("usuario", "estudio").default("usuario").messages({
+        "any.only": "El tipo de cuenta debe ser 'usuario' o 'estudio'"
     })
 });
 

@@ -21,7 +21,7 @@ const seedAdmin = async () => {
         email: "admin@finanfocus.com",
         hashedPassword,
         tipo: "admin",
-        plan: "premium" // el admin no gestiona planes, pero conviene que no tenga la restricción de 4
+        plan: "directo" // el admin no gestiona planes; "directo" no tiene tope de movimientos
     });
 
     
