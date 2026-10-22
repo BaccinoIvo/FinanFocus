@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import Usuario from "../models/usuario.model.js";
 import Movimiento from "../models/movimiento.model.js";
@@ -153,6 +154,86 @@ export const desvincularContador = async (req, res, next) => {
         if (usuario.plan === "referido") usuario.plan = "gratuito";
         await usuario.save();
         res.json({ message: "Te desvinculaste de tu contador", data: { plan: normalizarPlan(usuario.plan) }, token: firmar(usuario) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+const datosDePerfil = (u) => {
+    const plan = planDe(u);
+    return {
+        nombreUsuario: u.nombreUsuario,
+        email: u.email,
+        tipo: u.tipo,
+        plan: normalizarPlan(u.plan),
+        planNombre: plan?.nombre ?? u.plan,
+        creadoEl: u.createdAt,
+        contador: u.contador?.nombreUsuario ?? null,
+        trialExpiraEl: u.trialExpiraEl
+    };
+};
+
+/** Datos de la cuenta del usuario logueado (nunca incluye la contraseña). */
+export const obtenerPerfil = async (req, res, next) => {
+    try {
+        const usuario = await Usuario.findById(req.user.id).populate("contador", "nombreUsuario");
+        if (!usuario) return res.status(404).json({ message: "Usuario no encontrado" });
+        res.json({ data: datosDePerfil(usuario) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/** Edita nombre de usuario y/o email. Devuelve un token nuevo porque el nombre viaja en el JWT. */
+export const editarPerfil = async (req, res, next) => {
+    try {
+        const usuario = await Usuario.findById(req.user.id);
+        if (!usuario) return res.status(404).json({ message: "Usuario no encontrado" });
+
+        const { nombreUsuario, email } = req.validatedBody;
+        const nuevoEmail = email?.toLowerCase();
+        const condiciones = [];
+        if (nombreUsuario && nombreUsuario !== usuario.nombreUsuario) condiciones.push({ nombreUsuario });
+        if (nuevoEmail && nuevoEmail !== usuario.email) condiciones.push({ email: nuevoEmail });
+
+        if (condiciones.length) {
+            const repetido = await Usuario.findOne({ _id: { $ne: usuario._id }, $or: condiciones });
+            if (repetido) {
+                return res.status(409).json({ message: "El nombre de usuario o el email ya están registrados" });
+            }
+        }
+
+        if (nombreUsuario) usuario.nombreUsuario = nombreUsuario;
+        if (nuevoEmail) usuario.email = nuevoEmail;
+        await usuario.save();
+
+        res.json({ message: "Perfil actualizado", data: datosDePerfil(usuario), token: firmar(usuario) });
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ message: "El nombre de usuario o el email ya están registrados" });
+        }
+        next(error);
+    }
+};
+
+/** Cambio de contraseña: exige la actual. */
+export const cambiarPassword = async (req, res, next) => {
+    try {
+        const { passwordActual, passwordNueva } = req.validatedBody;
+        const usuario = await Usuario.findById(req.user.id);
+        if (!usuario) return res.status(404).json({ message: "Usuario no encontrado" });
+
+        if (!bcrypt.compareSync(passwordActual, usuario.hashedPassword)) {
+            return res.status(400).json({ message: "La contraseña actual no es correcta" });
+        }
+        if (passwordActual === passwordNueva) {
+            return res.status(400).json({ message: "La contraseña nueva debe ser distinta de la actual" });
+        }
+
+        usuario.hashedPassword = bcrypt.hashSync(passwordNueva, Number(process.env.SALTING_ROUNDS));
+        await usuario.save();
+        res.json({ message: "Contraseña actualizada" });
     } catch (error) {
         next(error);
     }
