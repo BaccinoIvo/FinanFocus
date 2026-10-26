@@ -68,6 +68,10 @@ const movimientoSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Los listados y estadísticas siempre filtran por usuario y ordenan por fecha: estos índices los aceleran.
+movimientoSchema.index({ usuario: 1, fecha: -1 });
+movimientoSchema.index({ usuario: 1, createdAt: -1 });
+
 const Movimiento = mongoose.model("Movimiento", movimientoSchema);
 
 export default Movimiento;

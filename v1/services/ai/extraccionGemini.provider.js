@@ -1,7 +1,14 @@
 import axios from "axios";
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
+const MODELO_PRINCIPAL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+// Modelo alternativo opcional (GEMINI_MODELO_RESPALDO): se usa si el principal sigue caído tras reintentar.
+const MODELO_RESPALDO = process.env.GEMINI_MODELO_RESPALDO || null;
+const urlDe = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 const TIMEOUT_MS = 20000;
+const ESPERA_REINTENTO_MS = 1500;
+// Errores transitorios de Google (sobrecarga, límite, caída momentánea): vale la pena reintentar.
+const ES_TRANSITORIO = (status, codigo) => [429, 500, 502, 503, 504].includes(status) || ["ECONNABORTED", "ETIMEDOUT", "ECONNRESET"].includes(codigo);
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const MONEDAS_VALIDAS = ["UYU", "USD", "EUR", "BRL", "ARS"];
 const TIPOS_VALIDOS = ["ingreso", "egreso"];
@@ -73,28 +80,38 @@ export const extraerDatos = async (entrada, mimeTypeOriginal = "image/jpeg") => 
         ? await descargarComoBase64(entrada, mimeTypeOriginal)
         : { base64: entrada.buffer.toString("base64"), mimeType: entrada.mimeType };
 
+    const cuerpo = {
+        contents: [{
+            parts: [
+                { inlineData: { mimeType, data: base64 } },
+                { text: PROMPT_EXTRACCION }
+            ]
+        }]
+    };
+    const config = { headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, timeout: TIMEOUT_MS };
+
+    // Principal (2 intentos) y, si está configurado, el modelo de respaldo (1 intento).
+    const intentos = [
+        { modelo: MODELO_PRINCIPAL }, { modelo: MODELO_PRINCIPAL },
+        ...(MODELO_RESPALDO && MODELO_RESPALDO !== MODELO_PRINCIPAL ? [{ modelo: MODELO_RESPALDO }] : [])
+    ];
+
     let data;
-    try {
-        const res = await axios.post(
-            GEMINI_URL,
-            {
-                contents: [{
-                    parts: [
-                        { inlineData: { mimeType, data: base64 } },
-                        { text: PROMPT_EXTRACCION }
-                    ]
-                }]
-            },
-            {
-                headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-                timeout: TIMEOUT_MS
-            }
-        );
-        data = res.data;
-    } catch (error) {
-        const status = error.response?.status;
-        throw new Error(`Gemini (visión) respondió ${status ?? error.code}`);
+    let ultimoError;
+    for (let i = 0; i < intentos.length; i++) {
+        try {
+            const res = await axios.post(urlDe(intentos[i].modelo), cuerpo, config);
+            data = res.data;
+            break;
+        } catch (error) {
+            const status = error.response?.status;
+            ultimoError = new Error(`Gemini (visión) respondió ${status ?? error.code} con ${intentos[i].modelo}`);
+            if (!ES_TRANSITORIO(status, error.code)) break; // 400/401/403/404: reintentar no sirve
+            console.error(`${ultimoError.message}; ${i < intentos.length - 1 ? "reintentando" : "sin más intentos"}`);
+            if (i < intentos.length - 1) await esperar(ESPERA_REINTENTO_MS);
+        }
     }
+    if (!data) throw ultimoError;
 
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!texto) {

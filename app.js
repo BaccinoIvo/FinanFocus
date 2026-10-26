@@ -2,27 +2,32 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+import { validarEntorno } from "./v1/config/env.config.js";
 import { connectDB } from "./v1/config/db.config.js";
 import notFoundMiddleware from "./v1/middlewares/notFound.middleware.js";
 import v1 from "./v1/v1.routes.js";
 
+validarEntorno();
 await connectDB();
 
 const app = express();
 
-const origenesPermitidos = [
-    "https://finan-focus-front-gamma.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map(o => o.trim()) : [])
-];
+// Detrás del proxy de Vercel: necesario para que el límite de peticiones identifique bien la IP.
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(helmet());
+
+const origenesPermitidos = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
+    : ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5500"];
 
 app.use(cors({
     origin: origenesPermitidos,
     credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: true }));
 
 
