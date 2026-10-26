@@ -63,6 +63,13 @@ const movimientoSchema = new mongoose.Schema({
     montoIva: {
         type: Number,
         default: null
+    },
+    // Tipo de comprobante fiscal electrónico (e-Ticket, e-Factura...), si el comprobante lo indica.
+    tipoCfe: {
+        type: String,
+        trim: true,
+        maxlength: 60,
+        default: null
     }
 }, {
     timestamps: true

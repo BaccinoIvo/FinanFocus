@@ -17,7 +17,7 @@ const PROMPT_EXTRACCION = `Sos un asistente que extrae datos estructurados de co
 uruguayos (tickets, facturas, recibos). Analizá la imagen y devolvé ÚNICAMENTE un objeto JSON,
 sin texto adicional, sin markdown, sin backticks, con esta forma exacta:
 
-{"monto": <número>, "moneda": "<UYU|USD|EUR|BRL|ARS>", "fecha": "<YYYY-MM-DD>", "tipo": "<ingreso|egreso>", "numeroComprobante": <string o null>, "rutEmisor": <string o null>, "montoIva": <número o null>}
+{"monto": <número>, "moneda": "<UYU|USD|EUR|BRL|ARS>", "fecha": "<YYYY-MM-DD>", "tipo": "<ingreso|egreso>", "numeroComprobante": <string o null>, "rutEmisor": <string o null>, "montoIva": <número o null>, "tipoCfe": <string o null>}
 
 Reglas:
 - "monto" es el total final pagado (no subtotales ni IVA por separado), como número sin separadores de miles.
@@ -35,6 +35,9 @@ Reglas:
 - "montoIva": el monto de IVA desglosado, SOLO si el documento lo muestra explícitamente como
   un renglón separado. Muchos tickets no lo desglosan — en ese caso, usá null. No calcules ni
   estimes un IVA que no esté impreso.
+- "tipoCfe": si el documento es un comprobante fiscal electrónico uruguayo (CFE), el nombre del tipo
+  tal como figura impreso en el encabezado, por ejemplo "e-Ticket", "e-Factura", "e-Factura de Exportación",
+  "Nota de Crédito de e-Ticket", "e-Resguardo". Si no es un CFE o no lo ves con claridad, usá null.
 - Si la imagen no es un comprobante legible o no podés extraer el monto con confianza, respondé
   exactamente: {"error": "no_legible"}
 
@@ -142,6 +145,7 @@ export const extraerDatos = async (entrada, mimeTypeOriginal = "image/jpeg") => 
         tipo,
         numeroComprobante: typeof parsed.numeroComprobante === "string" ? parsed.numeroComprobante : null,
         rutEmisor: typeof parsed.rutEmisor === "string" ? parsed.rutEmisor : null,
-        montoIva: typeof parsed.montoIva === "number" ? parsed.montoIva : null
+        montoIva: typeof parsed.montoIva === "number" ? parsed.montoIva : null,
+        tipoCfe: typeof parsed.tipoCfe === "string" && parsed.tipoCfe.trim() ? parsed.tipoCfe.trim().slice(0, 60) : null
     };
 };

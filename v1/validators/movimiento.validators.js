@@ -29,6 +29,7 @@ export const crearMovimientoSchema = Joi.object({
     // Opcionales: se completan a mano, o los trae la IA si logró leerlos del comprobante.
     numeroComprobante: Joi.string().allow(null, "").max(50),
     rutEmisor: Joi.string().allow(null, "").max(20),
+    tipoCfe: Joi.string().allow(null, "").max(60),
     montoIva: Joi.number().min(0).allow(null).messages({
         "number.min": "El IVA no puede ser negativo"
     })
@@ -49,6 +50,7 @@ export const actualizarMovimientoSchema = Joi.object({
     descripcion: Joi.string().allow("").max(200),
     numeroComprobante: Joi.string().allow(null, "").max(50),
     rutEmisor: Joi.string().allow(null, "").max(20),
+    tipoCfe: Joi.string().allow(null, "").max(60),
     montoIva: Joi.number().min(0).allow(null)
 }).min(1).messages({
     "object.min": "Debe enviar al menos un campo para actualizar"
