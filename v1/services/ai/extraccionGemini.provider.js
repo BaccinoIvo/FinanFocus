@@ -1,7 +1,14 @@
 import axios from "axios";
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
+const MODELO_PRINCIPAL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+// Modelo alternativo opcional (GEMINI_MODELO_RESPALDO): se usa si el principal sigue caído tras reintentar.
+const MODELO_RESPALDO = process.env.GEMINI_MODELO_RESPALDO || null;
+const urlDe = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 const TIMEOUT_MS = 20000;
+const ESPERA_REINTENTO_MS = 1500;
+// Errores transitorios de Google (sobrecarga, límite, caída momentánea): vale la pena reintentar.
+const ES_TRANSITORIO = (status, codigo) => [429, 500, 502, 503, 504].includes(status) || ["ECONNABORTED", "ETIMEDOUT", "ECONNRESET"].includes(codigo);
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const MONEDAS_VALIDAS = ["UYU", "USD", "EUR", "BRL", "ARS"];
 const TIPOS_VALIDOS = ["ingreso", "egreso"];
@@ -10,7 +17,7 @@ const PROMPT_EXTRACCION = `Sos un asistente que extrae datos estructurados de co
 uruguayos (tickets, facturas, recibos). Analizá la imagen y devolvé ÚNICAMENTE un objeto JSON,
 sin texto adicional, sin markdown, sin backticks, con esta forma exacta:
 
-{"monto": <número>, "moneda": "<UYU|USD|EUR|BRL|ARS>", "fecha": "<YYYY-MM-DD>", "tipo": "<ingreso|egreso>", "numeroComprobante": <string o null>, "rutEmisor": <string o null>, "montoIva": <número o null>}
+{"monto": <número>, "moneda": "<UYU|USD|EUR|BRL|ARS>", "fecha": "<YYYY-MM-DD>", "tipo": "<ingreso|egreso>", "numeroComprobante": <string o null>, "rutEmisor": <string o null>, "montoIva": <número o null>, "tipoCfe": <string o null>}
 
 Reglas:
 - "monto" es el total final pagado (no subtotales ni IVA por separado), como número sin separadores de miles.
@@ -28,6 +35,9 @@ Reglas:
 - "montoIva": el monto de IVA desglosado, SOLO si el documento lo muestra explícitamente como
   un renglón separado. Muchos tickets no lo desglosan — en ese caso, usá null. No calcules ni
   estimes un IVA que no esté impreso.
+- "tipoCfe": si el documento es un comprobante fiscal electrónico uruguayo (CFE), el nombre del tipo
+  tal como figura impreso en el encabezado, por ejemplo "e-Ticket", "e-Factura", "e-Factura de Exportación",
+  "Nota de Crédito de e-Ticket", "e-Resguardo". Si no es un CFE o no lo ves con claridad, usá null.
 - Si la imagen no es un comprobante legible o no podés extraer el monto con confianza, respondé
   exactamente: {"error": "no_legible"}
 
@@ -60,36 +70,51 @@ const descargarComoBase64 = async (fileUrl, mimeTypeOriginal) => {
  * tres campos quedan en null si Gemini no los encuentra con confianza —
  * nunca se inventan ni se estiman.
  */
-export const extraerDatos = async (fileUrl, mimeTypeOriginal = "image/jpeg") => {
+export const extraerDatos = async (entrada, mimeTypeOriginal = "image/jpeg") => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new Error("Falta GEMINI_API_KEY en las variables de entorno");
     }
 
-    const { base64, mimeType } = await descargarComoBase64(fileUrl, mimeTypeOriginal);
+    // Si llega el archivo en memoria ({ buffer, mimeType }) se manda directo a Gemini: no hace falta
+    // subirlo a Cloudinary, transformarlo y volver a bajarlo antes (eso sumaba varios segundos).
+    // Si llega una URL, se descarga como antes.
+    const { base64, mimeType } = typeof entrada === "string"
+        ? await descargarComoBase64(entrada, mimeTypeOriginal)
+        : { base64: entrada.buffer.toString("base64"), mimeType: entrada.mimeType };
+
+    const cuerpo = {
+        contents: [{
+            parts: [
+                { inlineData: { mimeType, data: base64 } },
+                { text: PROMPT_EXTRACCION }
+            ]
+        }]
+    };
+    const config = { headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, timeout: TIMEOUT_MS };
+
+    // Principal (2 intentos) y, si está configurado, el modelo de respaldo (1 intento).
+    const intentos = [
+        { modelo: MODELO_PRINCIPAL }, { modelo: MODELO_PRINCIPAL },
+        ...(MODELO_RESPALDO && MODELO_RESPALDO !== MODELO_PRINCIPAL ? [{ modelo: MODELO_RESPALDO }] : [])
+    ];
 
     let data;
-    try {
-        const res = await axios.post(
-            GEMINI_URL,
-            {
-                contents: [{
-                    parts: [
-                        { inlineData: { mimeType, data: base64 } },
-                        { text: PROMPT_EXTRACCION }
-                    ]
-                }]
-            },
-            {
-                headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-                timeout: TIMEOUT_MS
-            }
-        );
-        data = res.data;
-    } catch (error) {
-        const status = error.response?.status;
-        throw new Error(`Gemini (visión) respondió ${status ?? error.code}`);
+    let ultimoError;
+    for (let i = 0; i < intentos.length; i++) {
+        try {
+            const res = await axios.post(urlDe(intentos[i].modelo), cuerpo, config);
+            data = res.data;
+            break;
+        } catch (error) {
+            const status = error.response?.status;
+            ultimoError = new Error(`Gemini (visión) respondió ${status ?? error.code} con ${intentos[i].modelo}`);
+            if (!ES_TRANSITORIO(status, error.code)) break; // 400/401/403/404: reintentar no sirve
+            console.error(`${ultimoError.message}; ${i < intentos.length - 1 ? "reintentando" : "sin más intentos"}`);
+            if (i < intentos.length - 1) await esperar(ESPERA_REINTENTO_MS);
+        }
     }
+    if (!data) throw ultimoError;
 
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!texto) {
@@ -120,6 +145,7 @@ export const extraerDatos = async (fileUrl, mimeTypeOriginal = "image/jpeg") => 
         tipo,
         numeroComprobante: typeof parsed.numeroComprobante === "string" ? parsed.numeroComprobante : null,
         rutEmisor: typeof parsed.rutEmisor === "string" ? parsed.rutEmisor : null,
-        montoIva: typeof parsed.montoIva === "number" ? parsed.montoIva : null
+        montoIva: typeof parsed.montoIva === "number" ? parsed.montoIva : null,
+        tipoCfe: typeof parsed.tipoCfe === "string" && parsed.tipoCfe.trim() ? parsed.tipoCfe.trim().slice(0, 60) : null
     };
 };

@@ -63,10 +63,21 @@ const movimientoSchema = new mongoose.Schema({
     montoIva: {
         type: Number,
         default: null
+    },
+    // Tipo de comprobante fiscal electrónico (e-Ticket, e-Factura...), si el comprobante lo indica.
+    tipoCfe: {
+        type: String,
+        trim: true,
+        maxlength: 60,
+        default: null
     }
 }, {
     timestamps: true
 });
+
+// Los listados y estadísticas siempre filtran por usuario y ordenan por fecha: estos índices los aceleran.
+movimientoSchema.index({ usuario: 1, fecha: -1 });
+movimientoSchema.index({ usuario: 1, createdAt: -1 });
 
 const Movimiento = mongoose.model("Movimiento", movimientoSchema);
 

@@ -1,0 +1,51 @@
+BACKEND - ACTUALIZACION DE PLANES (v2)
+======================================
+Copiar estos archivos sobre los del mismo nombre en tu repo del BACKEND
+(la carpeta "v1" de este zip va dentro de la carpeta donde esta tu app.js).
+Esta version tambien reemplaza app.js y package.json y agrega paquetes nuevos: despues de copiar, correr `npm install` (agrega helmet).
+Si tu app.js tiene cambios propios, aplica a mano los cambios de la seccion SEGURIDAD en vez de reemplazarlo.
+
+Despues, en la terminal del repo del backend:
+  git add .
+  git commit -m "Planes: gratuito, referido, directo y planes de estudio; invitaciones y perfiles sombra"
+  git push
+Esperar a que Vercel termine el deploy (Ready / Current).
+
+Que cambia
+- 7 planes. Usuarios: gratuito (4 movimientos por mes), referido (USD 5), directo (USD 9).
+  Estudios: trial (30 dias), independiente (USD 35), boutique (USD 89), escala (USD 149).
+- Cuentas viejas: "plus" se trata como gratuito y "premium" como directo. No hay que migrar la base.
+- Nuevos endpoints: GET /usuarios/uso, GET /usuarios/planes, PATCH /usuarios/plan (devuelve token nuevo),
+  POST /usuarios/invitacion/aceptar, DELETE /usuarios/contador,
+  POST/GET /estudio/invitaciones, POST /estudio/perfiles-sombra, DELETE /estudio/usuarios/:id,
+  POST/PUT/DELETE /estudio/usuarios/:id/movimientos (solo perfiles sombra).
+- POST /auth/register acepta "tipo": "usuario" | "estudio" (estudio arranca con 30 dias de prueba).
+- Perfil: GET /usuarios/perfil, PATCH /usuarios/perfil (nombre y email; devuelve token nuevo) y PATCH /usuarios/password (pide la contrasena actual).
+- Se elimino PATCH /estudio/usuarios/:nombreUsuario: ahora el vinculo es por invitacion de un solo uso (48 h).
+- El admin del seed pasa a plan "directo" (si ya existe en tu base, su plan "premium" sigue funcionando).
+
+Lectura de comprobantes mas rapida (POST /comprobantes/extraer)
+- Antes: subia el archivo a Cloudinary, lo transformaba, lo volvia a bajar y recien ahi llamaba a Gemini (~13 s).
+- Ahora Gemini recibe el archivo directo desde la memoria y la subida a Cloudinary corre en paralelo.
+- Imagenes: Gemini -> Tesseract -> manual (antes era Tesseract primero). Con la variable ORDEN_CASCADA=tesseract se invierte.
+- PDF: Gemini -> manual. La respuesta mantiene imageUrl igual que antes.
+
+Gemini con reintentos (error 503 / 429 / 500)
+- Si Gemini responde un error transitorio, se reintenta una vez a los 1,5 s.
+- Opcional: variable GEMINI_MODELO_RESPALDO en Vercel (nombre de otro modelo de Gemini) para un tercer intento
+  con otro modelo si el principal sigue caido. Tambien se puede cambiar el principal con GEMINI_MODEL.
+- Errores 400/401/403/404 no se reintentan (no son transitorios).
+
+SEGURIDAD Y ROBUSTEZ (nuevo)
+- app.js: helmet (cabeceras seguras), app.set("trust proxy", 1) (corrige ERR_ERL_FORWARDED_HEADER),
+  express.json({ limit: "100kb" }), validarEntorno() al arrancar (avisa si falta MONGO_URI o JWT_SECRET).
+- Login: maximo 10 intentos fallidos cada 15 min por IP; registro: 20 por IP (middlewares/limitadores.middleware.js).
+- Indices en Movimiento ({usuario, fecha} y {usuario, createdAt}): listados y estadisticas mas rapidos.
+- GET /v1/health: estado real del servicio y de la base (200 ok / 503 degraded). /v1/ping sigue igual.
+- Tests: `npm test` (node:test, sin dependencias extra): planes, invitaciones, perfil, reintentos de Gemini, entorno.
+- CI: .github/workflows/ci.yml corre los tests en cada push.
+
+TIPO DE CFE (nuevo)
+- Movimiento tiene un campo opcional "tipoCfe" (e-Ticket, e-Factura...). Gemini lo lee del encabezado del comprobante
+  (null si no es un CFE). Archivos: models/movimiento.model.js, validators/movimiento.validators.js,
+  services/ai/extraccionGemini.provider.js (reemplazar los 3).

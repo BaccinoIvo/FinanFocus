@@ -8,8 +8,15 @@ export const extraerComprobante = async (req, res, next) => {
             return res.status(400).json({ message: "No se recibió ningún archivo" });
         }
 
-        const fileUrl = await subirImagenBuffer(req.file.buffer);
-        const resultado = await procesarComprobante(fileUrl, req.file.mimetype);
+        // La subida a Cloudinary y la lectura con IA corren en paralelo: la IA ya no espera a la subida.
+        const subida = subirImagenBuffer(req.file.buffer);
+        subida.catch(() => {}); // si falla, el error se maneja al esperarla más abajo
+        const resultado = await procesarComprobante({
+            buffer: req.file.buffer,
+            mimeType: req.file.mimetype,
+            urlPromise: subida
+        });
+        const fileUrl = await subida;
 
         res.status(201).json({
             success: true,

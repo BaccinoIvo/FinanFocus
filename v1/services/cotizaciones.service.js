@@ -3,6 +3,10 @@ import axios from "axios";
 const BASE_URL = "https://datosuruguay.com/api/v1";
 const TIMEOUT_MS = 8000;
 
+// Fuente de respaldo (gratuita, sin clave): tipos de cambio internacionales de referencia.
+// Se usa solo si datosuruguay.com (BROU) no responde.
+const RESPALDO_URL = "https://open.er-api.com/v6/latest/USD";
+
 const cache = new Map();
 const TTL_QUOTE_MS = 5 * 60 * 1000;   // 5 minutos (USD, EUR, BRL, ARS: cotización de mostrador)
 const TTL_SERIE_MS = 15 * 60 * 1000;  // 15 minutos (UI, UR: series diarias/mensuales)
@@ -22,7 +26,43 @@ const setCache = (key, value, ttl) => {
 };
 
 
-const obtenerCotizacionMoneda = async (moneda) => {
+// Devuelve la tabla de tasas USD -> X desde la fuente de respaldo (con caché propio).
+const obtenerTablaRespaldo = async () => {
+    const cacheada = getCache("respaldo:tabla");
+    if (cacheada) return cacheada;
+
+    const res = await axios.get(RESPALDO_URL, { timeout: TIMEOUT_MS });
+    const { result, rates, time_last_update_unix } = res.data ?? {};
+    if (result !== "success" || !rates?.UYU) {
+        throw new Error("La fuente de respaldo no devolvió tasas válidas");
+    }
+    const tabla = {
+        rates,
+        fecha: time_last_update_unix
+            ? new Date(time_last_update_unix * 1000).toISOString()
+            : new Date().toISOString()
+    };
+    setCache("respaldo:tabla", tabla, TTL_QUOTE_MS);
+    return tabla;
+};
+
+// Cotización X -> UYU calculada a partir de la tabla en dólares. No tiene compra/venta.
+const obtenerCotizacionRespaldo = async (moneda) => {
+    const { rates, fecha } = await obtenerTablaRespaldo();
+    const m = moneda.toUpperCase();
+    const tasa = m === "USD" ? 1 : rates[m];
+    if (!tasa) throw new Error(`La fuente de respaldo no tiene ${m}`);
+    return {
+        moneda: m,
+        valor: Number((rates.UYU / tasa).toFixed(m === "ARS" ? 6 : 4)),
+        compra: null,
+        venta: null,
+        fecha,
+        referencia: true
+    };
+};
+
+const obtenerCotizacionPrincipal = async (moneda) => {
     const key = `moneda:${moneda}`;
     const cacheado = getCache(key);
     if (cacheado) return cacheado;
@@ -51,6 +91,19 @@ const obtenerCotizacionMoneda = async (moneda) => {
     };
     setCache(key, resultado, TTL_QUOTE_MS);
     return resultado;
+};
+
+
+// Primero BROU (datosuruguay.com); si falla, valor de referencia internacional.
+const obtenerCotizacionMoneda = async (moneda) => {
+    try {
+        return await obtenerCotizacionPrincipal(moneda);
+    } catch (errorPrincipal) {
+        console.error(`Cotización principal falló para ${moneda}: ${errorPrincipal.message}. Usando respaldo.`);
+        const respaldo = await obtenerCotizacionRespaldo(moneda);
+        setCache(`moneda:${moneda}`, respaldo, 60 * 1000); // reintenta la principal en 1 minuto
+        return respaldo;
+    }
 };
 
 

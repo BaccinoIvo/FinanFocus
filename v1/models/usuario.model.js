@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { PLANES_VALIDOS } from "../config/planes.config.js";
 
 const usuarioSchema = new mongoose.Schema({
     nombreUsuario: {
@@ -25,13 +26,19 @@ const usuarioSchema = new mongoose.Schema({
     },
     plan: {
         type: String,
-        enum: ["plus", "premium"],
-        default: "plus"
+        enum: PLANES_VALIDOS,
+        default: "gratuito"
     },
     contador: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Usuario",
         default: null
+    },
+    // Perfil creado por un estudio para cargar comprobantes de un cliente que no se registró.
+    // No tiene acceso propio: no puede iniciar sesión.
+    esPerfilSombra: {
+        type: Boolean,
+        default: false
     },
     trialExpiraEl: {
         type: Date,
