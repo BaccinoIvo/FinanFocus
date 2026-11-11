@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import { hashearPassword } from "../services/password.service.js";
 import Usuario from "../models/usuario.model.js";
 import Movimiento from "../models/movimiento.model.js";
 
@@ -13,7 +13,7 @@ export const crearEstudio = async (req, res, next) => {
             return res.status(409).json({ message: "El nombre de usuario o el email ya están registrados" });
         }
 
-        const hashedPassword = bcrypt.hashSync(password, Number(process.env.SALTING_ROUNDS));
+        const hashedPassword = await hashearPassword(password);
         const trialExpiraEl = new Date(Date.now() + DIAS_TRIAL * 24 * 60 * 60 * 1000);
 
         const nuevoEstudio = await Usuario.create({

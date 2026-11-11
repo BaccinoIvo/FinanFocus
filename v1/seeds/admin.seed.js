@@ -1,8 +1,8 @@
 
 import "dotenv/config";
-import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import Usuario from "../models/usuario.model.js";
+import { hashearPassword } from "../services/password.service.js";
 
 const seedAdmin = async () => {
     await mongoose.connect(process.env.MONGO_URI);
@@ -14,7 +14,7 @@ const seedAdmin = async () => {
         return;
     }
 
-    const hashedPassword = bcrypt.hashSync("Admin123!", Number(process.env.SALTING_ROUNDS));
+    const hashedPassword = await hashearPassword("Admin123!");
 
     await Usuario.create({
         nombreUsuario: "admin",
