@@ -1,9 +1,9 @@
-<<<<<<< HEAD
+
 import { hashearPassword } from "../services/password.service.js";
-=======
+
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
->>>>>>> a7e788d09ba9b0a0c04e94f72bef40b483cec0e4
+
 import Usuario from "../models/usuario.model.js";
 import Movimiento from "../models/movimiento.model.js";
 import Categoria from "../models/categoria.model.js";
